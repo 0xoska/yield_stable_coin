@@ -5,11 +5,11 @@ import {IAzUsd} from "./interfaces/IAzUsd.sol";
 
 import {IPool} from "./interfaces/aave/IPool.sol";
 
-import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 contract AzUsdCore is ERC20, Ownable, ReentrancyGuard, IAzUsd {
     using SafeERC20 for IERC20;
@@ -21,7 +21,7 @@ contract AzUsdCore is ERC20, Ownable, ReentrancyGuard, IAzUsd {
     address public collateral;
 
     bool public isPause;
-    bool public isUsedAave;
+    bool public isActiveAave;
     address public aToken;
     address public aavePool;
     address public feeReceiver;
@@ -50,6 +50,7 @@ contract AzUsdCore is ERC20, Ownable, ReentrancyGuard, IAzUsd {
 
     function setPause(bool state) external onlyOwner {
         isPause = state;
+        emit UpdatePause(isPause);
     }
 
     function setBlacklist(address user, bool state) external onlyOwner {
@@ -60,11 +61,13 @@ contract AzUsdCore is ERC20, Ownable, ReentrancyGuard, IAzUsd {
     function setAaveInfo(
         uint16 _referralCode,
         address _aavePool,
-        address _aToken
+        address _aToken,
+        bool _isActiveAave
     ) external onlyOwner {
         referralCode = _referralCode;
         aavePool = _aavePool;
         aToken = _aToken;
+        isActiveAave = _isActiveAave;
     }
 
     function setFeeInfo(
@@ -74,25 +77,41 @@ contract AzUsdCore is ERC20, Ownable, ReentrancyGuard, IAzUsd {
         flowFee = _flowFee;
         feeReceiver = _feeReceiver;
     }
+    
+    function exitAave() external onlyOwner {
+        require(_aaveWithdraw(), "Aave withdraw fail");
+    }
 
     function mint(Way way, uint256 amount) external nonReentrant Lock {
         _checkBlacklist(address(this));
-        uint256 collateralBalance = _userCollateralBalance(msg.sender);
+        uint256 collateralBalance = _userCollateralBalance(collateral, msg.sender);
         require(collateralBalance >= amount, "Collateral insufficient");
-        uint256 mintAmount = getAmount(way, amount);
+        uint256 mintAmount = getAmountOut(way, amount);
         _mint(msg.sender, mintAmount);
         totalCollateral += amount;
-        require(_aaveSupply(amount), "Aave supply fail");
+        if(isActiveAave){
+            require(_aaveSupply(amount), "Aave supply fail");
+        }
     }
 
     function refund(Way way, uint256 amount) external nonReentrant {
-        uint256 refundAmount = getAmount(way, amount);
-        require(_aaveWithdraw(), "Aave withdraw fail");
+        uint256 refundAmount = getAmountOut(way, amount);
+        uint256 aTokenBalance = _userCollateralBalance(aToken, address(this));
+        if(isActiveAave){
+            if(aTokenBalance > 0){
+                require(_aaveWithdraw(), "Aave withdraw fail");
+            }
+        }
         IERC20(collateral).safeTransfer(msg.sender, refundAmount);
         burn(amount);
         totalCollateral -= refundAmount;
-        uint256 collateralBalance = _userCollateralBalance(address(this));
-        require(_aaveSupply(collateralBalance), "Aave supply fail");
+        uint256 collateralBalance = _userCollateralBalance(collateral, address(this));
+        
+        if(isActiveAave){
+            if(collateralBalance > 0){
+                require(_aaveSupply(collateralBalance), "Aave supply fail");
+            }
+        }
         emit Refund(msg.sender, refundAmount);
     }
 
@@ -167,6 +186,7 @@ contract AzUsdCore is ERC20, Ownable, ReentrancyGuard, IAzUsd {
         IERC20(aToken).approve(aavePool, type(uint256).max);
         IPool(aavePool).withdraw(collateral, type(uint256).max, address(this));
         uint256 currentCollateralBalance = _userCollateralBalance(
+            collateral,
             address(this)
         );
         if (currentCollateralBalance > totalCollateral + MINIMUM_LIQUIDITY) {
@@ -183,7 +203,7 @@ contract AzUsdCore is ERC20, Ownable, ReentrancyGuard, IAzUsd {
         return tokenDecimals;
     }
 
-    function getAmount(
+    function getAmountOut(
         Way way,
         uint256 amount
     ) public view returns (uint256 amountOut) {
@@ -192,17 +212,17 @@ contract AzUsdCore is ERC20, Ownable, ReentrancyGuard, IAzUsd {
             if (collateralDecimals == tokenDecimals) {
                 amountOut = amount;
             } else if (collateralDecimals > tokenDecimals) {
-                amountOut = amount / (collateralDecimals - tokenDecimals);
+                amountOut = amount / 10 ** (collateralDecimals - tokenDecimals);
             } else if (collateralDecimals < tokenDecimals) {
-                amountOut = amount * (tokenDecimals - collateralDecimals);
+                amountOut = amount * 10 **  (tokenDecimals - collateralDecimals);
             }
         } else if (way == Way.TokenRefund && collateralDecimals != 0) {
             if (collateralDecimals == tokenDecimals) {
                 amountOut = amount;
             } else if (collateralDecimals > tokenDecimals) {
-                amountOut = amount * (collateralDecimals - tokenDecimals);
+                amountOut = amount * 10 ** (collateralDecimals - tokenDecimals);
             } else if (collateralDecimals < tokenDecimals) {
-                amountOut = amount / (tokenDecimals - collateralDecimals);
+                amountOut = amount / 10 ** (tokenDecimals - collateralDecimals);
             }
         } else {
             revert("Invalid collateral decimals");
@@ -311,9 +331,10 @@ contract AzUsdCore is ERC20, Ownable, ReentrancyGuard, IAzUsd {
     }
 
     function _userCollateralBalance(
+        address token,
         address user
     ) private view returns (uint256 _collateralBalance) {
-        _collateralBalance = IERC20(collateral).balanceOf(user);
+        _collateralBalance = IERC20(token).balanceOf(user);
     }
 
     function _checkBlacklist(address user) private view {

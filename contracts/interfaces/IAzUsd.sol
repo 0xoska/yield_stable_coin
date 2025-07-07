@@ -5,6 +5,7 @@ interface IAzUsd {
 
     enum Way{TokenMint, TokenRefund, TokenSafeTransfer, TokenStream}
 
+    event UpdatePause(bool currentState);
     event UpdateBlacklist(address user, bool state);
     event Refund(address indexed user, uint256 amount);
     event Stream(uint256 thisFlowId);
