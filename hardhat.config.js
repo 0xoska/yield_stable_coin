@@ -9,12 +9,12 @@ module.exports = {
     arb_sepolia: {
       chainId: 421614,
       url: process.env.Arbitrum_Sepolia_Rpc,
-      accounts: [process.env.PRIVATE_KEY1],
+      accounts: [process.env.PRIVATE_KEY1, process.env.PRIVATE_KEY2],
     },
     unichain_sepolia: {
       chainId: 1301,
       url: process.env.Unichain_Sepolia_RPC,
-      accounts: [process.env.PRIVATE_KEY1],
+      accounts: [process.env.PRIVATE_KEY1, process.env.PRIVATE_KEY2],
     }
   },
   solidity: {

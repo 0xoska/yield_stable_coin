@@ -39,7 +39,7 @@ contract AzUsdCore is ERC20, Ownable, ReentrancyGuard, IAzUsd {
 
     mapping(uint256 => FlowInfo) private flowInfo;
 
-    mapping(address => mapping(address => uint256[])) private userFlowIds;
+    mapping(address => uint256[]) private userFlowIds;
 
     mapping(address => bool) private blacklist;
 
@@ -86,6 +86,7 @@ contract AzUsdCore is ERC20, Ownable, ReentrancyGuard, IAzUsd {
         _checkBlacklist(address(this));
         uint256 collateralBalance = _userCollateralBalance(collateral, msg.sender);
         require(collateralBalance >= amount, "Collateral insufficient");
+        IERC20(collateral).safeTransferFrom(msg.sender, address(this), amount);
         uint256 mintAmount = getAmountOut(way, amount);
         _mint(msg.sender, mintAmount);
         totalCollateral += amount;
@@ -125,7 +126,8 @@ contract AzUsdCore is ERC20, Ownable, ReentrancyGuard, IAzUsd {
         require(msg.value >= flowFee, "Insufficient fee");
         uint256 userTokenBalance = balanceOf(msg.sender);
         require(userTokenBalance >= amount, "Insufficient");
-        require(msg.sender != receiver);
+        require(msg.sender != receiver && receiver != address(0), "Invalid address");
+        require(endTime >= 60, "At least 1 min");
         if (way == Way.TokenSafeTransfer) {
             _burn(msg.sender, amount);
             _mint(receiver, amount);
@@ -141,7 +143,7 @@ contract AzUsdCore is ERC20, Ownable, ReentrancyGuard, IAzUsd {
                 flowAmount: amount,
                 alreadyWithdrawAmount: 0
             });
-            userFlowIds[msg.sender][receiver].push(flowId);
+            userFlowIds[receiver].push(flowId);
             emit Stream(flowId);
             flowId++;
         } else {
@@ -173,6 +175,7 @@ contract AzUsdCore is ERC20, Ownable, ReentrancyGuard, IAzUsd {
     }
 
     function _aaveSupply(uint256 amount) private returns (bool state) {
+        IERC20(collateral).approve(aavePool, amount);
         IPool(aavePool).deposit(
             collateral,
             amount,
@@ -270,15 +273,13 @@ contract AzUsdCore is ERC20, Ownable, ReentrancyGuard, IAzUsd {
     }
 
     function getUserFlowIdsLength(
-        address sender,
-        address receiver
+        address user
     ) public view returns (uint256) {
-        return userFlowIds[sender][receiver].length;
+        return userFlowIds[user].length;
     }
 
     function indexUserStreams(
-        address sender,
-        address receiver,
+        address user,
         uint256 pageIndex
     )
         external
@@ -289,7 +290,7 @@ contract AzUsdCore is ERC20, Ownable, ReentrancyGuard, IAzUsd {
             FlowInfo[] memory flowInfoGroup
         )
     {
-        uint256 userFlowIdslength = getUserFlowIdsLength(sender, receiver);
+        uint256 userFlowIdslength = getUserFlowIdsLength(user);
         if (userFlowIdslength > 0) {
             uint256 len;
             uint256 indexFlowId;
@@ -305,7 +306,7 @@ contract AzUsdCore is ERC20, Ownable, ReentrancyGuard, IAzUsd {
                 }
                 if (pageIndex > 0) {
                     indexFlowId = pageIndex * 10;
-                    currentFlowId = userFlowIds[sender][receiver][indexFlowId];
+                    currentFlowId = userFlowIds[user][indexFlowId];
                 }
             }
             flowIdGroup = new uint256[](len);
