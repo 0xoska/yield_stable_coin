@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.26;
 
 import {IAzUsd} from "./interfaces/IAzUsd.sol";
@@ -164,7 +164,7 @@ contract AzUsdCore is ERC20, Ownable, ReentrancyGuard, IAzUsd {
         require(residue > 0, "Zero");
         _mint(receiver, residue);
         flowInfo[thisFlowId].lastestWithdrawTime = currentTime;
-        flowInfo[thisFlowId].alreadyWithdrawAmount = residue;
+        flowInfo[thisFlowId].alreadyWithdrawAmount += residue;
         emit Release(msg.sender, residue);
     }
 
@@ -239,7 +239,6 @@ contract AzUsdCore is ERC20, Ownable, ReentrancyGuard, IAzUsd {
         uint64 endTime = flowInfo[thisFlowId].endTime;
         uint64 currentTime = uint64(block.timestamp);
         uint64 lastestWithdrawTime = flowInfo[thisFlowId].lastestWithdrawTime;
-        require(currentTime <= flowInfo[thisFlowId].endTime, "Already end");
         uint128 amount = flowInfo[thisFlowId].flowAmount;
         uint128 alreadyWithdrawAmount = flowInfo[thisFlowId]
             .alreadyWithdrawAmount;

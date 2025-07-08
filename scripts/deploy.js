@@ -52,7 +52,7 @@ async function main() {
   // const azUsdCore = await hre.ethers.getContractFactory("AzUsdCore");
   // const AzUsdCore = await azUsdCore.deploy(18, USDCAddress);
   // const AzUsdCoreAddress = AzUsdCore.target;
-  const AzUsdCoreAddress = "0x43dCC78Ee0E721E629e0Fab54478d5949e7720e5";
+  const AzUsdCoreAddress = "0x3C6BBaaE23Af600537a90AD61A60F8F1aaF2e1BC";
   const AzUsdCore = new ethers.Contract(AzUsdCoreAddress, AzUsdABI.abi, owner);
   console.log("AzUsdCore:", AzUsdCoreAddress);
 
@@ -106,20 +106,20 @@ async function main() {
   const refundAmount = 1_000_000_000_000_000n;
   const getAmountOut2 = await AzUsdCore.getAmountOut(Way[1], refundAmount);
   console.log("getAmountOut2:", getAmountOut2);
-  const refund = await AzUsdCore.refund(Way[1], refundAmount);
-  const refundTx = await refund.wait();
-  console.log("refund:", refundTx.hash);
+  // const refund = await AzUsdCore.refund(Way[1], refundAmount);
+  // const refundTx = await refund.wait();
+  // console.log("refund:", refundTx.hash);
 
   const endTime = 100;
   const amount = 1000;
 
-  const flow1 = await AzUsdCore.flow(Way[2], user1.address, endTime, amount);
-  const flow1Tx = await flow1.wait();
-  console.log("flow1:", flow1Tx.hash);
+  // const flow1 = await AzUsdCore.flow(Way[2], user1.address, endTime, amount);
+  // const flow1Tx = await flow1.wait();
+  // console.log("flow1:", flow1Tx.hash);
 
-  const flow2 = await AzUsdCore.flow(Way[3], user1.address, endTime, amount);
-  const flow2Tx = await flow2.wait();
-  console.log("flow2:", flow2Tx.hash);
+  // const flow2 = await AzUsdCore.flow(Way[3], user1.address, endTime, amount);
+  // const flow2Tx = await flow2.wait();
+  // console.log("flow2:", flow2Tx.hash);
 
   const user1AzUsd = new ethers.Contract(AzUsdCoreAddress, AzUsdABI.abi, user1);
 
