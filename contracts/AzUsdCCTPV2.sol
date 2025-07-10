@@ -48,10 +48,9 @@ contract AzUsdCCTPV2 {
         IERC20(burnToken).safeTransferFrom(msg.sender, address(this), amount);
         IERC20(burnToken).approve(cctpTokenMessagerV2, amount);
 
-        bytes memory message = abi.encode(mintRecipient, amount);
         bytes memory hookData = abi.encode( 
-            targetBytes32AzUsd, // Receiving contract verification
-            message // Custom information
+            msg.sender, 
+            uint64(amount)
         );
 
         ITokenMessengerV2(cctpTokenMessagerV2).depositForBurnWithHook(
@@ -82,8 +81,35 @@ contract AzUsdCCTPV2 {
         );
     }
 
-    event TouchReceive(address receiver, uint256 amount);
+    event TouchData(bytes data);
+    event TouchHookData(bytes hookData);
+    uint256 public receiveAmount;
+    address public receiver;
 
+    /**
+     * Message Format:
+     *
+     * Field                        Bytes      Type       Index
+     * version                      4          uint32     0
+     * sourceDomain                 4          uint32     4
+     * destinationDomain            4          uint32     8
+     * nonce                        32         bytes32    12
+     * sender                       32         bytes32    44
+     * recipient                    32         bytes32    76
+     * destinationCaller            32         bytes32    108
+     * minFinalityThreshold         4          uint32     140
+     * finalityThresholdExecuted    4          uint32     144
+     * messageBody                  dynamic    bytes      148
+
+      uint32 _version,
+        uint32 _sourceDomain,
+        uint32 _destinationDomain,
+        bytes32 _sender,
+        bytes32 _recipient,
+        bytes32 _destinationCaller,
+        uint32 _minFinalityThreshold,
+        bytes calldata _messageBody
+     */
     function receiveUSDC(
         bytes calldata message,
         bytes calldata attestation
@@ -111,44 +137,71 @@ contract AzUsdCCTPV2 {
             attestation
         ), "Receive message failed");
 
-        // Handle hook if present
-        bytes29 _hookData = BurnMessageV2._getHookData(_msgBody);
-        if (_hookData.isValid()) {
-            uint256 _hookDataLength = _hookData.len();
-            if (_hookDataLength >= ADDRESS_BYTE_LENGTH) {
-                address _target = _hookData.indexAddress(0);
-                bytes memory _hookCalldata = _hookData
-                    .postfix(_hookDataLength - ADDRESS_BYTE_LENGTH, 0)
-                    .clone();
-
-                // (hookSuccess, hookReturnData) = _executeHook(
-                //     _target,
-                //     _hookCalldata
-                // );
-                
-                (bytes32 bytes32Receiver, uint256 amount) = abi.decode(_hookCalldata, (bytes32, uint256));
-                address receiver = bytes32ToAddress(bytes32Receiver);
-                emit TouchReceive(receiver, amount);
-            }
-        }
+        bytes memory hookdata = decodeMessageToHookdata(message);
+                // (receiver, receiveAmount) = abi.decode(_hookData, (address, uint64));
+                // emit TouchData(_hookData);
+        emit TouchHookData(hookdata);
+        
     }
 
-    // ============ Internal Functions  ============
-    /**
-     * @notice Handles hook data by executing a call to a target address
-     * @dev Can be overridden to customize execution behavior
-     * @dev Does not revert if the CALL to the hook target fails
-     * @param _hookTarget The target address of the hook
-     * @param _hookCalldata The hook calldata
-     * @return _success True if the call to the encoded hook target succeeds
-     * @return _returnData The data returned from the call to the hook target
-     */
-    function _executeHook(
-        address _hookTarget,
-        bytes memory _hookCalldata
-    ) internal virtual returns (bool _success, bytes memory _returnData) {
-        (_success, _returnData) = address(_hookTarget).call(_hookCalldata);
+    struct MessageHeader{
+       uint32 version;
+       uint32 sourceDomain;
+       uint32 destinationDomain;
+       bytes32 nonce;
+       bytes32 sender;
+       bytes32 recipient;
+       bytes32 destinationCaller;
+       uint32 minFinalityThreshold;
+       uint32 finalityThresholdExecuted;
+       bytes messageBody;
     }
+
+    function decodeMessage(bytes calldata message) public view returns(MessageHeader memory) {
+        return MessageHeader({
+            version: uint32(bytes4(message[0:4])),
+            sourceDomain: uint32(bytes4(message[4:8])),
+            destinationDomain: uint32(bytes4(message[8:12])),
+            nonce: bytes32(message[12:44]),
+            sender: bytes32(message[44:76]),
+            recipient: bytes32(message[76:108]),
+            destinationCaller: bytes32(message[108:140]),
+            minFinalityThreshold: uint32(bytes4(message[140:144])),
+            finalityThresholdExecuted: uint32(bytes4(message[144:148])),
+            messageBody: message[148:]
+        });
+    }
+
+    struct MessageBody{
+        uint32 version;
+        bytes32 burnToken;
+        bytes32 mintRecipient;
+        uint256 amount;
+        bytes32 messageSender;
+        uint256 maxFee;
+        uint256 feeExecuted;
+        uint256 expirationBlock;
+        bytes hookData;
+    }
+
+    function decodeMessageBody(bytes calldata messageBody) public view returns (MessageBody memory) {
+        return MessageBody({
+            version: uint32(bytes4(messageBody[0:4])),
+            burnToken: bytes32(messageBody[4:36]),
+            mintRecipient: bytes32(messageBody[36:68]),
+            amount: uint256(bytes32(messageBody[68: 100])),
+            messageSender: bytes32(messageBody[100:132]),
+            maxFee: uint256(bytes32(messageBody[132: 164])),
+            feeExecuted: uint256(bytes32(messageBody[164: 196])),
+            expirationBlock: uint256(bytes32(messageBody[196: 228])),
+            hookData: messageBody[228:]
+        });
+    }
+
+    function decodeMessageToHookdata(bytes calldata message) public view returns (bytes memory hookdata) {
+        hookdata = message[376:];
+    }
+
 
     function cctpV2HandleReceiveFinalizedMessage(
         uint32 remoteDomain,

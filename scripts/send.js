@@ -18,8 +18,8 @@ async function main() {
   let USDCAddress;
   let TokenMessagerV2;
   let MessageTransmitterV2;
-  const arbAzUsdCCTPV2Address = "0xB6B844a63A9a42E1Dd4Ed086A1dcb8F6D16548fD";
-  const uniAzUsdCCTPV2Address = "0x641f96430147673E97C527BDEeb372f5995CF817";
+  const arbAzUsdCCTPV2Address = "0xAdB599F381b731a1C7FaF8d31F8530feC05999aF";
+  const uniAzUsdCCTPV2Address = "0x83bEde1230B62c1f1bA50c2BC673D94bDE45616F";
   let AzUsdCCTPV2Address;
   if (chainId === 421614n) {
     USDCAddress = "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d";
@@ -91,15 +91,15 @@ async function main() {
 
   const mintRecipient = await AddressToBytes32(owner.address);
 
-  //0x810159dab3f69d2df42ef9e2febe9498e9b88504a6bfb0690db6eb8f67abb69c
+  //0xa4ddba084d56cf95f24de229e46a1b24a27806488cf6043f445a526e282fef9c
   const crossUSDC = await AzUsdCCTPV2.cross(
     10000n,
     uniDomain,
     mintRecipient,
     USDCAddress,
     bytes32UniAzUsdCCTPV2,
-    2000,
-    2000
+    5000,
+    800
   );
   const crossUSDCTx = await crossUSDC.wait();
   console.log("crossUSDC:", crossUSDCTx.hash);
