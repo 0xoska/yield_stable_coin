@@ -48,16 +48,34 @@ contract AzUsdCore is ERC20, Ownable, ReentrancyGuard, IAzUsd {
         _;
     }
 
+    /**
+     * @dev     .Set the contract suspension status
+     * @param   state  ."true" means pause and "false" means open
+     */
     function setPause(bool state) external onlyOwner {
         isPause = state;
         emit UpdatePause(isPause);
     }
 
+    /**
+     * @notice  ."true" indicates a blacklist, while "false" does not
+     * @dev     .Set the blacklist information
+     * @param   user  .Blacklisted user
+     * @param   state  .true indicates a blacklisted user, while false does not
+     */
     function setBlacklist(address user, bool state) external onlyOwner {
         blacklist[user] = state;
         emit UpdateBlacklist(user, state);
     }
 
+    /**
+     * @dev     .Set the AaveV3 information
+     * @param   _referralCode  .The default invitation code for AaveV3 is 0
+     * @param   _aavePool  .Aavev3 is in the staking pool of this chain
+     * @param   _aToken  .The a token generated from the collateral of Aavev3
+     * @param   _isActiveAave  .The aavev3 switch, true means it is not turned on, 
+     *          false means it is not turned on, and it is not turned on by default
+     */
     function setAaveInfo(
         uint16 _referralCode,
         address _aavePool,
@@ -70,6 +88,11 @@ contract AzUsdCore is ERC20, Ownable, ReentrancyGuard, IAzUsd {
         isActiveAave = _isActiveAave;
     }
 
+    /**
+     * @dev     .Set the cost information
+     * @param   _flowFee  .The flow payment fee is set to 0 by default and local chain payment is used
+     * @param   _feeReceiver  .Fee recipient
+     */
     function setFeeInfo(
         uint64 _flowFee,
         address _feeReceiver
@@ -78,6 +101,9 @@ contract AzUsdCore is ERC20, Ownable, ReentrancyGuard, IAzUsd {
         feeReceiver = _feeReceiver;
     }
     
+    /**
+     * @dev     .Extract all USDC from AaveV3
+     */
     function exitAave() external onlyOwner {
         require(_aaveWithdraw(), "Aave withdraw fail");
     }
@@ -175,7 +201,7 @@ contract AzUsdCore is ERC20, Ownable, ReentrancyGuard, IAzUsd {
     
     /**
      * @notice  .Users can only obtain the full azUsd after the end time of the streaming payment
-     * @dev     .Release flow payment
+     * @dev     .Release the remaining funds for flow payment
      * @param   thisFlowId  .
      */
     function release(uint256 thisFlowId) external nonReentrant {
