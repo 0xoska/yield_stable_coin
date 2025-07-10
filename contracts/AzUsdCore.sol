@@ -82,12 +82,16 @@ contract AzUsdCore is ERC20, Ownable, ReentrancyGuard, IAzUsd {
         require(_aaveWithdraw(), "Aave withdraw fail");
     }
 
-    function mint(Way way, uint256 amount) external nonReentrant Lock {
+    /**
+     * @dev     .The USDC collateral deposited by users directly enters AaveV3 to earn returns and mints the corresponding amount of azUsd
+     * @param   amount  .The quantity of USDC input
+     */
+    function mint(uint256 amount) external nonReentrant Lock {
         _checkBlacklist(address(this));
         uint256 collateralBalance = _userCollateralBalance(collateral, msg.sender);
         require(collateralBalance >= amount, "Collateral insufficient");
         IERC20(collateral).safeTransferFrom(msg.sender, address(this), amount);
-        uint256 mintAmount = getAmountOut(way, amount);
+        uint256 mintAmount = getAmountOut(Way.TokenMint, amount);
         _mint(msg.sender, mintAmount);
         totalCollateral += amount;
         if(isActiveAave){
@@ -95,8 +99,13 @@ contract AzUsdCore is ERC20, Ownable, ReentrancyGuard, IAzUsd {
         }
     }
 
-    function refund(Way way, uint256 amount) external nonReentrant {
-        uint256 refundAmount = getAmountOut(way, amount);
+    /**
+     * @dev     .Withdraw all the USDC stored in AaveV3 and calculate whether the current amount of USDC obtained is 
+     **         greater than the total amount of staked USDC + MINIMUM_LIQUIDITY
+     * @param   amount  .The quantity of azUSD input
+     */
+    function refund(uint256 amount) external nonReentrant {
+        uint256 refundAmount = getAmountOut(Way.TokenRefund, amount);
         uint256 aTokenBalance = _userCollateralBalance(aToken, address(this));
         if(isActiveAave){
             if(aTokenBalance > 0){
@@ -116,6 +125,13 @@ contract AzUsdCore is ERC20, Ownable, ReentrancyGuard, IAzUsd {
         emit Refund(msg.sender, refundAmount);
     }
 
+    /**
+     * @dev     .Methods for secure transfer and stream payment
+     * @param   way  . Choose between secure transfer and stream payment
+     * @param   receiver  . Recipient's address
+     * @param   endTime  .The end time of stream payment must be greater than or equal to 60 seconds
+     * @param   amount  .The input azUsd quantity should be at least 1000
+     */
     function flow(
         Way way,
         address receiver,
@@ -125,7 +141,7 @@ contract AzUsdCore is ERC20, Ownable, ReentrancyGuard, IAzUsd {
         _checkBlacklist(receiver);
         require(msg.value >= flowFee, "Insufficient fee");
         uint256 userTokenBalance = balanceOf(msg.sender);
-        require(userTokenBalance >= amount, "Insufficient");
+        require(userTokenBalance >= amount && amount >= 1000, "Insufficient");
         require(msg.sender != receiver && receiver != address(0), "Invalid address");
         require(endTime >= 60, "At least 1 min");
         if (way == Way.TokenSafeTransfer) {
@@ -156,6 +172,12 @@ contract AzUsdCore is ERC20, Ownable, ReentrancyGuard, IAzUsd {
         emit Flow(msg.sender, receiver, amount);
     }
 
+    
+    /**
+     * @notice  .Users can only obtain the full azUsd after the end time of the streaming payment
+     * @dev     .Release flow payment
+     * @param   thisFlowId  .
+     */
     function release(uint256 thisFlowId) external nonReentrant {
         uint64 currentTime = uint64(block.timestamp);
         address receiver = flowInfo[thisFlowId].receiver;
@@ -167,7 +189,11 @@ contract AzUsdCore is ERC20, Ownable, ReentrancyGuard, IAzUsd {
         flowInfo[thisFlowId].alreadyWithdrawAmount += residue;
         emit Release(msg.sender, residue);
     }
-
+    
+    /**
+     * @dev     .The user destroys azUsd
+     * @param   amount  .
+     */
     function burn(uint256 amount) public {
         uint256 tokenBalance = balanceOf(msg.sender);
         require(amount <= tokenBalance, "Burn overflow");
@@ -206,6 +232,12 @@ contract AzUsdCore is ERC20, Ownable, ReentrancyGuard, IAzUsd {
         return tokenDecimals;
     }
 
+    /**
+     * @dev     .Obtain the number of tokens obtained from the corresponding mint and refund
+     * @param   way  .mint or refund
+     * @param   amount  .The number of tokens entered
+     * @return  amountOut  .Return the output token corresponding to another token
+     */
     function getAmountOut(
         Way way,
         uint256 amount
@@ -232,6 +264,11 @@ contract AzUsdCore is ERC20, Ownable, ReentrancyGuard, IAzUsd {
         }
     }
 
+    /**
+     * @dev     .Obtain the remaining number of tokens for streaming payment
+     * @param   thisFlowId  .Stream payment id
+     * @return  residue  .Remaining quantity
+     */
     function getStreamBalance(
         uint256 thisFlowId
     ) public view returns (uint128 residue) {
@@ -265,6 +302,11 @@ contract AzUsdCore is ERC20, Ownable, ReentrancyGuard, IAzUsd {
         }
     }
 
+    /**
+     * @dev     .Obtain the streaming payment information
+     * @param   thisFlowId  .Stream payment id
+     * @return  FlowInfo  .
+     */
     function getFlowInfo(
         uint256 thisFlowId
     ) public view returns (FlowInfo memory) {
@@ -277,6 +319,15 @@ contract AzUsdCore is ERC20, Ownable, ReentrancyGuard, IAzUsd {
         return userFlowIds[user].length;
     }
 
+    /**
+     * @notice  .A maximum of 10 per page
+     * @dev     .Index the user's streaming payment information
+     * @param   user  .The address that will receive the stream payment
+     * @param   pageIndex  .Page number index
+     * @return  flowIdGroup  .flowId array
+     * @return  streamBalanceGroup  .Stream balance array
+     * @return  flowInfoGroup  .Stream payment information array
+     */
     function indexUserStreams(
         address user,
         uint256 pageIndex
