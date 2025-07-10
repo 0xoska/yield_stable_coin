@@ -99,14 +99,14 @@ async function main() {
   const mintAmount = 1n * 10n ** 3n;
   const getAmountOut1 = await AzUsdCore.getAmountOut(Way[0], mintAmount);
   console.log("getAmountOut1:", getAmountOut1);
-  // const mint = await AzUsdCore.mint(Way[0], mintAmount);
+  // const mint = await AzUsdCore.mint(mintAmount);
   // const mintTx = await mint.wait();
   // console.log("mint:", mintTx.hash);
 
   const refundAmount = 1_000_000_000_000_000n;
   const getAmountOut2 = await AzUsdCore.getAmountOut(Way[1], refundAmount);
   console.log("getAmountOut2:", getAmountOut2);
-  // const refund = await AzUsdCore.refund(Way[1], refundAmount);
+  // const refund = await AzUsdCore.refund(refundAmount);
   // const refundTx = await refund.wait();
   // console.log("refund:", refundTx.hash);
 
