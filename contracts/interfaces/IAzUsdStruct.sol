@@ -3,7 +3,7 @@ pragma solidity ^0.8.26;
 
 interface IAzUsdStruct {
 
-    struct CrossParams{
+    struct CrossParams {
         uint32 destinationDomain;  //Target CCTPV2 Domain
         uint32 minFinalityThreshold; //minimum completion time
         address burnToken; //Destroy token (USDC)
@@ -14,8 +14,17 @@ interface IAzUsdStruct {
         bytes hookData;  //Cross-chain data transmission
     }
 
+    struct CrossMessageParams {
+        uint32 destinationDomain;  //Target CCTPV2 Domain
+        bytes32 recipient; 
+        bytes32 destinationCaller;
+        uint32 minFinalityThreshold;
+        uint256 maxFee;
+        uint256 refundAmount;
+    }
+
     struct RefundInfo {
-        uint8 isRefunded;  // 0 == No refund, !0 == refunded
+        bool isRefunded;  // false == No refund, true == refunded
         uint32 refundTime; //Refund initiation time
         uint64 amount;  //USDC amount
         address receiver; //The address of the bytes32 type minted USDC receiver

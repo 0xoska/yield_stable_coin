@@ -8,6 +8,8 @@ interface IAzUsdYieldPool is IAzUsdStruct, IAzUsdError {
 
     event UpdatePause(bool currentState);
 
+    event UpdateValidBytesContract(uint32 destinationDomain,bytes32 contractAddress);
+
     event ReceiveRefundInfo(uint128 indexed thisRefundId, uint256 refundAmount);
 
     event Emergency(uint128 indexed thisRefundId, uint256 refundAmount, uint256 balance);

@@ -18,11 +18,11 @@ contract AzUsdYieldPool is Ownable, ReentrancyGuard, IAzUsdYieldPool {
 
     uint8 private constant MINIMUM_LIQUIDITY = 100;
     uint16 private referralCode;
-    address public collateral;
+    address private manager;
 
     bool public isPause;
     bool public isActiveAave;
-    bool public alarm;
+    address public collateral;
     address public aToken;
     address public aavePool;
     address public feeReceiver;
@@ -33,24 +33,24 @@ contract AzUsdYieldPool is Ownable, ReentrancyGuard, IAzUsdYieldPool {
     uint32 private constant supportedMessageVersion = 1;
     // The supported Message Body version
     uint32 private constant supportedMessageBodyVersion = 1;
-
     address public cctpTokenMessagerV2;
     address public cctpMessageTransmitterV2;
-
     // Byte-length of an address
     uint256 private constant ADDRESS_BYTE_LENGTH = 20;
 
     constructor(
+        address _manager,
         address _collateral,
         address _cctpTokenMessagerV2, 
         address _cctpMessageTransmitterV2
     ) Ownable(msg.sender) {
+        manager = _manager;
         collateral = _collateral;
         cctpTokenMessagerV2 = _cctpTokenMessagerV2;
         cctpMessageTransmitterV2 = _cctpMessageTransmitterV2;
     }
 
-    mapping(uint32 => bytes32) private validContract;
+    mapping(uint32 => bytes32) private validBytesContract;
 
     mapping(uint128 => uint256) private receivedRefundAmount;
 
@@ -59,21 +59,45 @@ contract AzUsdYieldPool is Ownable, ReentrancyGuard, IAzUsdYieldPool {
         _;
     }
 
-    function updateAlarm(bool state) external onlyOwner {
-        alarm = state;
+    modifier onlyManager() {
+        _checkManager();
+        _;
+    }
+
+    function changeManager(address _manager) external onlyOwner {
+        manager = _manager;
+    }
+
+    /**
+     * @dev     .Set the fee receiver
+     * @param   _feeReceiver  .Fee recipient
+     */
+    function setFeeReceiver(
+        address _feeReceiver
+    ) external onlyOwner {
+        feeReceiver = _feeReceiver;
+    }
+
+    /**
+     * @dev     .Set the target chain address of the contract in the bytes32 type
+     * @param   destinationDomain  .
+     * @param   targetAddress  .
+     */
+    function setBytes32ValidContract(
+        uint32 destinationDomain,
+        bytes32 targetAddress
+    ) external onlyOwner {
+        validBytesContract[destinationDomain] = targetAddress;
+        emit UpdateValidBytesContract(destinationDomain, targetAddress);
     }
 
     /**
      * @dev     .Set the contract suspension status
      * @param   state  ."true" means pause and "false" means open
      */
-    function setPause(bool state) external onlyOwner {
+    function setPause(bool state) external onlyManager {
         isPause = state;
         emit UpdatePause(isPause);
-    }
-
-    function setValidContract(uint32 destinationDomain, bytes32 targetAddress) external onlyOwner {
-        validContract[destinationDomain] = targetAddress;
     }
 
     /**
@@ -89,7 +113,7 @@ contract AzUsdYieldPool is Ownable, ReentrancyGuard, IAzUsdYieldPool {
         address _aavePool,
         address _aToken,
         bool _isActiveAave
-    ) external onlyOwner {
+    ) external onlyManager {
         referralCode = _referralCode;
         aavePool = _aavePool;
         aToken = _aToken;
@@ -97,31 +121,23 @@ contract AzUsdYieldPool is Ownable, ReentrancyGuard, IAzUsdYieldPool {
     }
 
     /**
-     * @dev     .Set the fee receiver
-     * @param   _feeReceiver  .Fee recipient
-     */
-    function setFeeReceiver(
-        address _feeReceiver
-    ) external onlyOwner {
-        feeReceiver = _feeReceiver;
-    }
-
-    /**
      * @notice  .
      * @dev     .
      */
-    function aaveSupllyAll() external onlyOwner {
+    function aaveSupllyAll() external onlyManager {
         //supply to aaveV3
         uint256 currentBalance = _userTokenBalance(collateral, address(this));
         if(currentBalance > 0){
             require(_aaveSupply(currentBalance), "Aave supply fail");
+        }else {
+            revert InsufficientBalance(0);
         }
     }
     
     /**
      * @dev     .Extract all USDC from AaveV3
      */
-    function aaveWithdrawAll() external onlyOwner {
+    function aaveWithdrawAll() external onlyManager {
         require(_aaveWithdraw(), "Aave withdraw fail");
     }
 
@@ -136,10 +152,10 @@ contract AzUsdYieldPool is Ownable, ReentrancyGuard, IAzUsdYieldPool {
         uint32 destinationDomain, 
         uint32 minFinalityThreshold, 
         uint256 maxFee
-    ) external onlyOwner {
+    ) external onlyManager {
         uint256 collateralBalance = _userTokenBalance(collateral, address(this));
         if(collateralBalance > 0){
-            bytes32 targetContract = validContract[destinationDomain];
+            bytes32 targetContract = validBytesContract[destinationDomain];
             require(targetContract.length > 0, "Invalid valid contract");
             CrossParams memory params;
             params.destinationDomain = destinationDomain; 
@@ -149,7 +165,7 @@ contract AzUsdYieldPool is Ownable, ReentrancyGuard, IAzUsdYieldPool {
             params.destinationCaller = targetContract;
             params.amount = collateralBalance;
             params.maxFee = maxFee;
-            _crossUSDCAndData(params);
+            _crossUSDC(params);
         }else {
             revert BalanceZero();
         }
@@ -162,7 +178,7 @@ contract AzUsdYieldPool is Ownable, ReentrancyGuard, IAzUsdYieldPool {
         uint128 thisRefundId
     ) external {
         uint256 refundAmount = receivedRefundAmount[thisRefundId];
-        if(refundAmount > 0 && alarm == false){
+        if(refundAmount > 0 && isPause == false){
             //Extract all collateral from Aave
             uint256 aTokenBalance = _userTokenBalance(aToken, address(this));
             if(aTokenBalance > 0){
@@ -171,7 +187,7 @@ contract AzUsdYieldPool is Ownable, ReentrancyGuard, IAzUsdYieldPool {
             uint256 collateralBalance = _userTokenBalance(collateral, address(this));
             //Determine whether an emergency situation has occurred
             if(collateralBalance >= refundAmount){
-                bytes32 targetContract = validContract[destinationDomain];
+                bytes32 targetContract = validBytesContract[destinationDomain];
                 require(targetContract.length > 0, "Invalid valid contract");
                 //Execute CCTP cross-chain operation
                 CrossParams memory params;
@@ -193,12 +209,17 @@ contract AzUsdYieldPool is Ownable, ReentrancyGuard, IAzUsdYieldPool {
                 }
                 delete receivedRefundAmount[thisRefundId];      
             } else {
-                alarm = true;
+                isPause = true;
                 emit Emergency(thisRefundId, refundAmount, collateralBalance);
             }
         }else {
             revert BalanceZero();
         }
+    }
+
+    // TODO Receive cross-chain information sent by the source contract
+    function receiveMessgae() external {
+
     }
 
     function receiveUSDCOrData(
@@ -278,6 +299,19 @@ contract AzUsdYieldPool is Ownable, ReentrancyGuard, IAzUsdYieldPool {
         state = true;
     }
 
+    function _crossUSDC(CrossParams memory params) internal {
+        IERC20(collateral).approve(cctpTokenMessagerV2, params.amount);
+        ITokenMessengerV2(cctpTokenMessagerV2).depositForBurn(
+            params.amount,
+            params.destinationDomain,
+            params.mintRecipient,
+            params.burnToken,
+            params.destinationCaller,
+            params.maxFee,
+            params.minFinalityThreshold
+        );
+    }
+
     function _crossUSDCAndData(
         CrossParams memory params
     ) internal {
@@ -292,6 +326,10 @@ contract AzUsdYieldPool is Ownable, ReentrancyGuard, IAzUsdYieldPool {
             params.minFinalityThreshold,
             params.hookData
         );
+    }
+
+    function _checkManager() private view {
+        require(msg.sender == manager, "Non manager");
     }
 
     function _collateralDecimals()

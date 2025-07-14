@@ -10,10 +10,18 @@ interface IAzUsd is IAzUsdStruct, IAzUsdError {
 
     event UpdatePause(bool currentState);
 
-    event UpdateAllowToken(address token, bool state);
+    event UpdateRate(uint16 newRate);
+
+    event UpdateValidBytesContract(uint32 destinationDomain,bytes32 contractAddress);
+
+    event UpdateAllowTokens(address[] tokens, bool[] states);
 
     event UpdateBlacklist(address user, bool state);
     
     event Refund(uint256 indexed thisRefundId, address user, uint256 amount);
+
+    event TouchCCTPV2Cross(address sender, uint256 amount);
+
+    event TouchCCTPV2Receive(uint256 indexed thisRefundId, address receiver);
 
 }
