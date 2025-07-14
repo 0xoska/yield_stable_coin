@@ -21,6 +21,8 @@ contract AzUsdCCTPV2 {
     uint256 private constant ADDRESS_BYTE_LENGTH = 20;
     uint256 private constant ZERO = 0;
 
+    bytes32 private BYTES32ZERO;
+
     address public cctpTokenMessagerV2;
     address public cctpMessageTransmitterV2;
 
@@ -60,20 +62,14 @@ contract AzUsdCCTPV2 {
         bytes calldata message,
         bytes calldata attestation
     ) public {
-        // Validate message
-        bytes29 _msg = message.ref(0);
-        MessageV2._validateMessageFormat(_msg);
+        uint32 messageVersion = Decoder.getMessageVersion(message);
+        uint32 messageBodyVersion = Decoder.getMessageBodyVersion(message);
+        bytes memory hookdata = Decoder.decodeMessageToHookdata(message);
+        // Validate message version
         require(
-            MessageV2._getVersion(_msg) == supportedMessageVersion,
-            "Invalid message version"
-        );
-
-        // Validate burn message
-        bytes29 _msgBody = MessageV2._getMessageBody(_msg);
-        BurnMessageV2._validateBurnMessageFormat(_msgBody);
-        require(
-            BurnMessageV2._getVersion(_msgBody) == supportedMessageBodyVersion,
-            "Invalid message body version"
+            messageVersion == supportedMessageVersion &&
+                messageBodyVersion == supportedMessageBodyVersion,
+            "Invalid version"
         );
 
         // Relay message
@@ -81,8 +77,7 @@ contract AzUsdCCTPV2 {
             message,
             attestation
         ), "Receive message failed");
-
-        bytes memory hookdata = Decoder.decodeMessageToHookdata(message);
+        emit TouchReceiveMessgae(hookdata);
         
     }
 
@@ -98,7 +93,7 @@ contract AzUsdCCTPV2 {
         IMessageTransmitterV2(cctpMessageTransmitterV2).sendMessage(
             destinationDomain, 
             recipient, 
-            destinationCaller, 
+            BYTES32ZERO, 
             minFinalityThreshold, 
             abi.encodePacked(
                 supportedMessageBodyVersion, 
@@ -118,15 +113,32 @@ contract AzUsdCCTPV2 {
     function handleReceiveFinalizedMessage(
         uint32 remoteDomain,
         bytes32 sender,
-        bytes calldata messageBody
+        bytes calldata message,
+        bytes calldata attestation
     ) external {
+        // Validate message
+        bytes29 _msg = message.ref(0);
+        MessageV2._validateMessageFormat(_msg);
+        require(
+            MessageV2._getVersion(_msg) == supportedMessageVersion,
+            "Invalid message version"
+        );
+
+        // Validate burn message
+        bytes29 _msgBody = MessageV2._getMessageBody(_msg);
+        BurnMessageV2._validateBurnMessageFormat(_msgBody);
+        require(
+            BurnMessageV2._getVersion(_msgBody) == supportedMessageBodyVersion,
+            "Invalid message body version"
+        );
+
         ITokenMessengerV2(cctpTokenMessagerV2).handleReceiveFinalizedMessage(
             remoteDomain, 
             sender, 
             0, 
-            messageBody
+            message[148:]
         );
-        emit TouchReceiveMessgae(Decoder.decodeMessageBody(messageBody).hookData);
+        emit TouchReceiveMessgae(message[148:]);
     }
 
     /**

@@ -268,6 +268,9 @@ contract AzUsdCore is ERC20, Ownable, ReentrancyGuard, IAzUsd {
             "Invalid version"
         );
 
+        //check
+        require(address(this) == Decoder.getRecipient(message), "Invalid sender");
+
         // Relay message
         require(
             IMessageTransmitterV2(cctpMessageTransmitterV2).receiveMessage(

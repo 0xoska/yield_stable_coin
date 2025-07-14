@@ -42,8 +42,8 @@ async function main() {
   let destDomain;
   let currentContractAddress;
   let destContractAddress;
-  let uniContractAddress = "0xBd387f849d0B387a55f17b7E5309c0ad0b65b58c";
-  let arbContractAddress = "0xeA220A1B85A42937Dd996752354DEe54EF77cae0";
+  let uniContractAddress = "0x6Bb65a41103DD7df9D3585Aee692756A0D3B4908";
+  let arbContractAddress = "0x34Ca9B7C78dE1B3e863E2Fb5D56fA2FCD790869b";
 
   if (chainId === 421614n) {
     currentContractAddress = arbContractAddress;
@@ -71,13 +71,13 @@ async function main() {
     throw "Invalid chain";
   }
 
-  //   const azUsdCCTPV2 = await hre.ethers.getContractFactory("AzUsdCCTPV2");
-  //   const AzUsdCCTPV2 = await azUsdCCTPV2.deploy(
-  //     cctpTokenMessagerV2,
-  //     cctpMessageTransmitterV2
-  //   );
-  //   const AzUsdCCTPV2Address = AzUsdCCTPV2.target;
-  //   console.log("AzUsdCCTPV2Address:", AzUsdCCTPV2Address);
+//   const azUsdCCTPV2 = await hre.ethers.getContractFactory("AzUsdCCTPV2");
+//   const AzUsdCCTPV2 = await azUsdCCTPV2.deploy(
+//     cctpTokenMessagerV2,
+//     cctpMessageTransmitterV2
+//   );
+//   const AzUsdCCTPV2Address = AzUsdCCTPV2.target;
+//   console.log("AzUsdCCTPV2Address:", AzUsdCCTPV2Address);
 
   const AzUsdCCTPV2 = new ethers.Contract(
     currentContractAddress,
@@ -85,7 +85,7 @@ async function main() {
     owner
   );
 
-  const recipient = await AzUsdCCTPV2.addressToBytes32(cctpTokenMessagerV2);
+  const recipient = await AzUsdCCTPV2.addressToBytes32(destContractAddress);
   console.log("recipient:", recipient);
 
 //   const crossMessage = await AzUsdCCTPV2.crossMessage(
@@ -99,16 +99,28 @@ async function main() {
 //   const crossMessageTx = await crossMessage.wait();
 //   console.log("crossMessage:", crossMessageTx.hash);
 
-  const messageBody = "0x0000000100000000000000000000000031d0220469e10c4e71834a79b1f276d740d3768f000000000000000000000000ea220a1b85a42937dd996752354dee54ef77cae00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000bd387f849d0b387a55f17b7e5309c0ad0b65b58c00000000000000000000000000000000000000000000000000000000000007d00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000640000000000000000000000000e913a977dfba823686de8066da9590c9c9ad344";
-
+  const messageBody = "";
+  const handleSender = await AzUsdCCTPV2.addressToBytes32(cctpMessageTransmitterV2);
+  console.log("handleSender:", handleSender);
   //receive message
   const handleReceiveFinalizedMessage = await AzUsdCCTPV2.handleReceiveFinalizedMessage(
     destDomain,
-    recipient,
+    handleSender,
     messageBody
   );
   const handleReceiveFinalizedMessageTx = await handleReceiveFinalizedMessage.wait();
   console.log("handleReceiveFinalizedMessage:", handleReceiveFinalizedMessageTx.hash);
+
+    // const message =
+    //   "";
+    // const attestation =
+    //   "";
+    // const receiveUSDCAndData = await AzUsdCCTPV2.receiveUSDCAndData(
+    //   message,
+    //   attestation
+    // );
+    // const receiveUSDCAndDataTx = await receiveUSDCAndData.wait();
+    // console.log("receiveUSDCAndData:", receiveUSDCAndDataTx.hash);
 }
 
 main().catch((error) => {

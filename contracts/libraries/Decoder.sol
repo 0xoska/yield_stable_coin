@@ -64,6 +64,10 @@ library Decoder {
         messageBodyVersion = uint32(bytes4(message[148:152]));
     }
 
+    function getRecipient() internal pure returns (bytes32 recipient) {
+        recipient = bytes32(message[76:108]);
+    }
+
     function decodeMessageToHookdata(bytes calldata message) internal pure returns (bytes memory hookdata) {
         hookdata = message[376:];
     }

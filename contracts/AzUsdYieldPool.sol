@@ -220,6 +220,8 @@ contract AzUsdYieldPool is Ownable, ReentrancyGuard, IAzUsdYieldPool {
     // TODO Receive cross-chain information sent by the source contract
     function receiveMessgae() external {
 
+        //check
+        // require(address(this) == Decoder.getRecipient(message), "Invalid sender");
     }
 
     function receiveUSDCOrData(
@@ -234,6 +236,9 @@ contract AzUsdYieldPool is Ownable, ReentrancyGuard, IAzUsdYieldPool {
             messageVersion == supportedMessageVersion && messageBodyVersion == supportedMessageBodyVersion,
             "Invalid version"
         );
+
+        //check
+        require(address(this) == Decoder.getRecipient(message), "Invalid sender");
 
         // Relay message
         require(IMessageTransmitterV2(cctpMessageTransmitterV2).receiveMessage(
